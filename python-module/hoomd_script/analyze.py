@@ -638,3 +638,79 @@ class msd(_analyzer):
 
         if delimiter:
             self.cpp_analyzer.setDelimiter(delimiter);
+
+class van_hove(_analyzer):
+    ## Initialize the van_hove calculator. This analyzer compute the self
+    # part of the Van Hove correlation function
+    #
+    # \param filename File to write the %data to
+    # \param groups List of groups for which to calculate the Van Hove correlation
+    # \param num_bins Number of bins used to compute the Van Hove correlation function
+    # \param r_cut Radius as which to cut off Van Hove histogram
+    # \param period Quantities are logged every \a period time steps
+    # \param header_prefix (optional) Specify a string to print before the header
+    # \param r0_file hoomd_xml file specifying the positions (and images) to use for \f$ \vec{r}_0 \f$
+    # \param overwrite set to True to overwrite the file \a filename if it exists
+    #
+    # \b Examples:
+    # \code
+    # van_hove = analyze.van_hove(filename='van_hove.log', groups=[group1, group2],
+    #                   period=100)
+    #
+    # analyze.van_hove(groups=[group1, group2, group3], period=1000,
+    #             filename='van_hove.log', header_prefix='#')
+    #
+    # analyze.van_hove(filename='van_hove.log', groups=[group1], period=10,
+    #             header_prefix='Log of group1 van_hove, run 5\n')
+    # \endcode
+    #
+    # If \a r0_file is left at the default of None, then the current state of the system at the execution of the
+    # analyze.van_hove command is used to initialize \f$ \vec{r}_0 \f$.
+    #
+    # \a period can be a function: see \ref variable_period_docs for details
+    def __init__(self, filename, groups, period, num_bins, r_cut,  header_prefix='', r0_file=None, overwrite=False):
+        util.print_status_line();
+
+        # initialize base class
+        _analyzer.__init__(self);
+
+        # create the c++ mirror class
+        self.cpp_analyzer = hoomd.VanHoveAnalyzer(globals.system_definition,
+                                                  filename,
+                                                  int(num_bins),
+                                                  float(r_cut**2),
+                                                  header_prefix,
+                                                  overwrite);
+        self.setupAnalyzer(period);
+
+        # it is an error to specify no groups
+        if len(groups) == 0:
+            globals.msg.error('At least one group must be specified to analyze.van_hove\n');
+            raise RuntimeError('Error creating analyzer');
+
+        # set the group columns
+        for cur_group in groups:
+            self.cpp_analyzer.addColumn(cur_group.cpp_group, cur_group.name);
+
+        if r0_file is not None:
+            self.cpp_analyzer.setR0(r0_file);
+
+    ## Change the parameters of the van_hove analysis
+    #
+    # \param delimiter New delimiter between columns in the output file (if specified)
+    #
+    # Using set_params() requires that the specified van_hove was saved in a variable when created.
+    # i.e.
+    # \code
+    # van_hove = analyze.van_hove(filename='van_hove.log', groups=[group1, group2], period=100)
+    # \endcode
+    #
+    # \b Examples:
+    # \code
+    # van_hove.set_params(delimiter=',');
+    # \endcode
+    def set_params(self, delimiter=None):
+        util.print_status_line();
+
+        if delimiter:
+            self.cpp_analyzer.setDelimiter(delimiter);

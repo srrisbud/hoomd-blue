@@ -301,7 +301,7 @@ void VanHoveAnalyzer::writeHeader()
     // timestep is always output
     m_file << "timestep"<< m_delimiter
            << "num_bins" << m_delimiter
-           << "r_cut" << m_delimiter;
+           << "r_cut";
 
     if (m_columns.size() == 0)
         {
@@ -361,7 +361,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, 
     // divide to complete the average
     for (unsigned int i=0; i< m_num_bins; i++)
         {
-        m_van_hove[i] /= four_pi * (i * deltaR) * (i * deltaR) * N_particles;
+        m_van_hove[i] /= four_pi * ((i + 0.5) * deltaR) * ((i + 0.5) * deltaR) * N_particles;
         }
     }
 
@@ -397,6 +397,7 @@ void VanHoveAnalyzer::writeRow(unsigned int timestep, const SnapshotParticleData
             m_file << m_delimiter << m_van_hove[j];
             }
         }
+    m_file << std::endl;
     m_file.flush();
 
     if (!m_file.good())

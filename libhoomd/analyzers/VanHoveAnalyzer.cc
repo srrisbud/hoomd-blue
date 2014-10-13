@@ -86,11 +86,11 @@ using namespace std;
 VanHoveAnalyzer::VanHoveAnalyzer(boost::shared_ptr<SystemDefinition> sysdef,
                          std::string fname,
                          const int num_bins,
-                         const Scalar dr2max,
+                         const Scalar r2max,
                          const std::string& header_prefix,
                          bool overwrite)
     : Analyzer(sysdef), m_delimiter("\t"), m_header_prefix(header_prefix), m_appending(false),
-      m_columns_changed(false), m_num_bins(num_bins), m_dr2max(dr2max)
+      m_columns_changed(false), m_num_bins(num_bins), m_r2max(r2max)
     {
     m_exec_conf->msg->notice(5) << "Constructing VanHoveAnalyzer: " << fname << " " << header_prefix << " " << overwrite << endl;
 
@@ -300,8 +300,8 @@ void VanHoveAnalyzer::writeHeader()
 
     // timestep is always output
     m_file << "timestep"<< m_delimiter
-           << "num_bins" << m_delimeter
-           << "r_cut" << m_delimeter;
+           << "num_bins" << m_delimiter
+           << "r_cut" << m_delimiter;
 
     if (m_columns.size() == 0)
         {
@@ -310,7 +310,7 @@ void VanHoveAnalyzer::writeHeader()
         }
 
     // only print the delimiter after the timestep if there are more columns
-    m_file  << m_delimeter;
+    m_file  << m_delimiter;
 
     // write all but the last of the quantities separated by the delimiter
     for (unsigned int i = 0; i < m_columns.size()-1; i++)
@@ -324,21 +324,18 @@ void VanHoveAnalyzer::writeHeader()
     Loop through all particles in the given group and calculate the VanHove over them.
     \returns The calculated VanHove
 */
-Scalar VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot)
+void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot)
     {
     //clear the existing histogram
-    memset(&m_vanhove[0], 0, sizeof(Scalar)*m_num_bins);
+    memset(&m_van_hove[0], 0, sizeof(Scalar)*m_num_bins);
 
     BoxDim box = m_pdata->getGlobalBox();
-
-    // initial sum for the average
-    Scalar van_hove = Scalar(0.0);
 
     // handle the case where there are 0 members gracefully
     if (group->getNumMembersGlobal() == 0)
         {
         m_exec_conf->msg->warning() << "analyze.van_hove: Group has 0 members, reporting a calculated van_hove of 0.0" << endl;
-        return Scalar(0.0);
+        return;
         }
 
     // for each particle in the group
@@ -353,18 +350,18 @@ Scalar VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group
         Scalar dy = unwrapped.y - m_initial_y[tag];
         Scalar dz = unwrapped.z - m_initial_z[tag];
         Scalar dr2 = dx*dx + dy*dy + dz*dz;
-        if (m_dr2max >= dr2)
+        if (m_r2max >= dr2)
             {
-            m_vanhove[(int)(m_num_bins * dr2/m_dr2max)] += 1;
+            m_van_hove[(int)(m_num_bins * dr2/m_r2max)] += 1;
             }
         }
     int N_particles = group->getNumMembersGlobal();
     Scalar four_pi = M_PI * 4.0;
     Scalar deltaR = m_r2max / m_num_bins;
     // divide to complete the average
-    for (int i=0; i< m_num_bins; i++)
+    for (unsigned int i=0; i< m_num_bins; i++)
         {
-        m_vanhove[i] /= four_pi * (i * deltaR) * (i * deltaR) * N_particles;
+        m_van_hove[i] /= four_pi * (i * deltaR) * (i * deltaR) * N_particles;
         }
     }
 
@@ -380,7 +377,7 @@ void VanHoveAnalyzer::writeRow(unsigned int timestep, const SnapshotParticleData
     // The timestep is always output
     m_file << setprecision(10) << timestep
            << m_delimiter << m_num_bins
-           << m_delimiter << sqrt(m_dr2max);
+           << m_delimiter << sqrt(m_r2max);
 
     // quit now if there is nothing to log
     if (m_columns.size() == 0)
@@ -397,7 +394,7 @@ void VanHoveAnalyzer::writeRow(unsigned int timestep, const SnapshotParticleData
         m_file << setprecision(10);
         for (unsigned int j = 0; j < m_num_bins; j++)
             {
-            m_file << delimeter << m_van_hove[j];
+            m_file << m_delimiter << m_van_hove[j];
             }
         }
     m_file.flush();
@@ -414,7 +411,8 @@ void VanHoveAnalyzer::writeRow(unsigned int timestep, const SnapshotParticleData
 void export_VanHoveAnalyzer()
     {
     class_<VanHoveAnalyzer, boost::shared_ptr<VanHoveAnalyzer>, bases<Analyzer>, boost::noncopyable>
-    ("VanHoveAnalyzer", init< boost::shared_ptr<SystemDefinition>, const std::string&, const std::string&, bool >())
+    ("VanHoveAnalyzer", init< boost::shared_ptr<SystemDefinition>, const std::string&,
+                              const unsigned int, const Scalar, const std::string&, bool >())
     .def("setDelimiter", &VanHoveAnalyzer::setDelimiter)
     .def("addColumn", &VanHoveAnalyzer::addColumn)
     .def("setR0", &VanHoveAnalyzer::setR0)

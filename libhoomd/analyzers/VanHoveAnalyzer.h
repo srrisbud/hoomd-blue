@@ -125,8 +125,8 @@ class VanHoveAnalyzer : public Analyzer
         std::vector<Scalar> m_initial_y;    //!< initial value of the y-component listed by tag
         std::vector<Scalar> m_initial_z;    //!< initial value of the z-component listed by tag
 
-        int m_num_bins; //!< num of bins for van hove histogram
-        Scalar m_dr2max; //!< max distance to compute histogram
+        unsigned int m_num_bins; //!< num of bins for van hove histogram
+        Scalar m_r2max; //!< max distance to compute histogram
         std::vector<Scalar> m_van_hove; //!< histogram of particle displacements
 
         //! struct for storing the particle group and name assocated with a column in the output

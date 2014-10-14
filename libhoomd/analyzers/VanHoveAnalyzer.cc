@@ -91,7 +91,7 @@ VanHoveAnalyzer::VanHoveAnalyzer(boost::shared_ptr<SystemDefinition> sysdef,
                                  const std::string& header_prefix,
                                  bool overwrite)
     : Analyzer(sysdef), m_delimiter("\t"), m_header_prefix(header_prefix), m_appending(false),
-      m_columns_changed(false),  m_num_windows(num_windows), m_num_bins(num_bins), m_r2max(r2max)
+      m_columns_changed(false), m_num_bins(num_bins), m_num_windows(num_windows), m_r2max(r2max)
     {
     m_exec_conf->msg->notice(5) << "Constructing VanHoveAnalyzer: " << fname << " " << header_prefix << " " << overwrite << endl;
 
@@ -202,17 +202,17 @@ void VanHoveAnalyzer::analyze(unsigned int timestep)
         m_columns_changed = false;
         }
 
-    rollR0(snapshot);
-    m_num_samples += 1;
-
     // write out the row every time
     if (m_R0_offset >= m_num_windows)
         {
         writeRow(timestep, snapshot);
+        m_num_samples += 1;
         }
 
     if (m_prof)
         m_prof->pop();
+
+    rollR0(snapshot);
     }
 
 /*! \param delimiter New delimiter to set
@@ -239,85 +239,11 @@ void VanHoveAnalyzer::addColumn(boost::shared_ptr<ParticleGroup> group, const st
         m_histograms[i].resize(m_num_bins);
     }
 
-/*! \param xml_fname Name of the XML file to read in to the r0 positions
-
-    \post \a xml_fname is read and all initial r0 positions are assigned from that file.
-    \post \a window averaging window in which to set r0
-*/
-void VanHoveAnalyzer::setR0(const std::string& xml_fname, const unsigned int window)
-    {
-    if (window >= m_num_windows)
-        {
-        m_exec_conf->msg->error() << "analyze.van_hove: File " << xml_fname << " cannot be loaded at window " << window << "; only "<< m_num_windows << " exist in this VanHove analyzer" << endl;
-        throw runtime_error("Error setting R0 in analyze.van_hove");
-        }
-
-    // read in the xml file
-    HOOMDInitializer xml(m_exec_conf,xml_fname);
-
-    // take particle data snapshot
-    SnapshotParticleData snapshot(m_pdata->getNGlobal());
-
-    m_pdata->takeSnapshot(snapshot);
-
-#ifdef ENABLE_MPI
-    // if we are not the root processor, do not perform file I/O
-    if (m_pdata->getDomainDecomposition() && !m_exec_conf->isRoot())
-        {
-        return;
-        }
-#endif
-
-    // verify that the input matches the current system size
-    unsigned int nparticles = m_pdata->getNGlobal();
-    if (nparticles != xml.getPos().size())
-        {
-        m_exec_conf->msg->error() << "analyze.van_hove: Found " << xml.getPos().size() << " particles in "
-             << xml_fname << ", but there are " << nparticles << " in the current simulation." << endl;
-        throw runtime_error("Error setting r0 in analyze.van_hove");
-        }
-
-    // determine if we have image data
-    bool have_image = (xml.getImage().size() == nparticles);
-    if (!have_image)
-        {
-        m_exec_conf->msg->warning() << "analyze.van_hove: Image data missing or corrupt in " << xml_fname
-             << ". Computed van_hove values will not be correct." << endl;
-        }
-
-    // reset the initial positions
-    BoxDim box = m_pdata->getGlobalBox();
-
-    unsigned int offset = window * nparticles;
-    // for each particle in the data
-    for (unsigned int tag = 0; tag < nparticles; tag++)
-        {
-        // save its initial position
-        HOOMDInitializer::vec pos = xml.getPos()[tag];
-        m_initial_x[offset + tag] = pos.x;
-        m_initial_y[offset + tag] = pos.y;
-        m_initial_z[offset + tag] = pos.z;
-
-        // adjust the positions by the image flags if we have them
-        if (have_image)
-            {
-            HOOMDInitializer::vec_int image = xml.getImage()[tag];
-            Scalar3 pos = make_scalar3(m_initial_x[tag], m_initial_y[tag], m_initial_z[tag]);
-            int3 image_i = make_int3(image.x, image.y, image.z);
-            Scalar3 unwrapped = box.shift(pos, image_i);
-            m_initial_x[offset + tag] = unwrapped.x;
-            m_initial_y[offset + tag] = unwrapped.y;
-            m_initial_z[offset + tag] = unwrapped.z;
-            }
-        }
-    }
-
 void VanHoveAnalyzer::rollR0(const SnapshotParticleData& snapshot)
     {
     // for each particle in the data
     unsigned int N_particles = snapshot.size;
     BoxDim box = m_pdata->getGlobalBox();
-    m_R0_offset += 1;
     unsigned int offset = (m_R0_offset % m_num_windows) * N_particles;
     for (unsigned int tag = 0; tag < N_particles; tag++)
         {
@@ -328,6 +254,7 @@ void VanHoveAnalyzer::rollR0(const SnapshotParticleData& snapshot)
         m_initial_y[offset + tag] = unwrapped.y;
         m_initial_z[offset + tag] = unwrapped.z;
         }
+    m_R0_offset += 1;
     }
 /*! The entire header row is written to the file. First, timestep is written as every file includes it and then the
     columns are looped through and their names printed, separated by the delimiter.
@@ -368,7 +295,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
                                   const unsigned int group_index)
     {
 
-    std::vector<Scalar> g_histogram = m_histograms[group_index];
+    std::vector<Scalar>& g_histogram = m_histograms[group_index];
     //clear the existing histogram
     if (m_num_samples == 0)
         {
@@ -405,7 +332,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
             }
         }
     // 4\pi dr^2 * N_particles (in group) * N_samples (in rolling average)
-    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * m_num_samples * m_r2max / (m_num_bins * m_num_bins);
+    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * (m_num_samples + 1) * m_r2max / (m_num_bins * m_num_bins);
     // divide to complete the average
     for (unsigned int i=0; i< m_num_bins; i++)
         {
@@ -465,7 +392,6 @@ void export_VanHoveAnalyzer()
                               const std::string&, bool >())
     .def("setDelimiter", &VanHoveAnalyzer::setDelimiter)
     .def("addColumn", &VanHoveAnalyzer::addColumn)
-    .def("setR0", &VanHoveAnalyzer::setR0)
     ;
     }
 

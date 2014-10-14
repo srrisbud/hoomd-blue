@@ -668,7 +668,7 @@ class van_hove(_analyzer):
     # analyze.van_hove command is used to initialize \f$ \vec{r}_0 \f$.
     #
     # \a period can be a function: see \ref variable_period_docs for details
-    def __init__(self, filename, groups, period, num_bins, r_cut,  header_prefix='', r0_file=None, overwrite=False):
+    def __init__(self, filename, groups, tau, num_windows, num_bins, r_cut,  header_prefix='', overwrite=False):
         util.print_status_line();
 
         # initialize base class
@@ -677,10 +677,17 @@ class van_hove(_analyzer):
         # create the c++ mirror class
         self.cpp_analyzer = hoomd.VanHoveAnalyzer(globals.system_definition,
                                                   filename,
+                                                  int(num_windows),
                                                   int(num_bins),
                                                   float(r_cut**2),
                                                   header_prefix,
                                                   overwrite);
+
+        #verify that tau is divisible by num_windows
+        if tau % num_windows:
+            raise(RuntimeError("tau must be divisible by num_windows"))
+
+        period = tau // num_windows
         self.setupAnalyzer(period);
 
         # it is an error to specify no groups
@@ -691,9 +698,6 @@ class van_hove(_analyzer):
         # set the group columns
         for cur_group in groups:
             self.cpp_analyzer.addColumn(cur_group.cpp_group, cur_group.name);
-
-        if r0_file is not None:
-            self.cpp_analyzer.setR0(r0_file);
 
     ## Change the parameters of the van_hove analysis
     #

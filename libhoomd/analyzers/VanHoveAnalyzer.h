@@ -90,6 +90,7 @@ class VanHoveAnalyzer : public Analyzer
         //! Construct the msd analyzer
         VanHoveAnalyzer(boost::shared_ptr<SystemDefinition> sysdef,
                         std::string fname,
+                        const int num_windows,
                         const int num_bins,
                         const Scalar dr2_max,
                         const std::string& header_prefix="",
@@ -108,7 +109,8 @@ class VanHoveAnalyzer : public Analyzer
         void addColumn(boost::shared_ptr<ParticleGroup> group, const std::string& name);
 
         //! Sets r0 from an xml file
-        void setR0(const std::string& xml_fname);
+        void setR0(const std::string& xml_fname, const unsigned int window);
+
 
     private:
         //! The delimiter to put between columns in the file
@@ -126,8 +128,12 @@ class VanHoveAnalyzer : public Analyzer
         std::vector<Scalar> m_initial_z;    //!< initial value of the z-component listed by tag
 
         unsigned int m_num_bins; //!< num of bins for van hove histogram
+        unsigned int m_num_windows;
+        unsigned int m_R0_offset;
+        unsigned int m_num_samples;
         Scalar m_r2max; //!< max distance to compute histogram
         std::vector<Scalar> m_van_hove; //!< histogram of particle displacements
+        std::vector< std::vector< Scalar > > m_histograms; //!< histogram of particle displacements
 
         //! struct for storing the particle group and name assocated with a column in the output
         struct column
@@ -147,10 +153,11 @@ class VanHoveAnalyzer : public Analyzer
         //! Helper function to write out the header
         void writeHeader();
         //! Helper function to calculate the VanHove of a single group
-        void calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot);
+        void calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot, unsigned int group_index);
         //! Helper function to write one row of output
         void writeRow(unsigned int timestep, const SnapshotParticleData& snapshot);
-
+        //! Helper function to compute rolling averages of G(r,tau)
+        void rollR0(const SnapshotParticleData& snapshot);
 
     };
 

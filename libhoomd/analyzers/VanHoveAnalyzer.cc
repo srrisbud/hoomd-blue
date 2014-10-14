@@ -84,13 +84,14 @@ using namespace std;
   analyze()
 */
 VanHoveAnalyzer::VanHoveAnalyzer(boost::shared_ptr<SystemDefinition> sysdef,
-                         std::string fname,
-                         const int num_bins,
-                         const Scalar r2max,
-                         const std::string& header_prefix,
-                         bool overwrite)
+                                 std::string fname,
+                                 const int num_windows,
+                                 const int num_bins,
+                                 const Scalar r2max,
+                                 const std::string& header_prefix,
+                                 bool overwrite)
     : Analyzer(sysdef), m_delimiter("\t"), m_header_prefix(header_prefix), m_appending(false),
-      m_columns_changed(false), m_num_bins(num_bins), m_r2max(r2max)
+      m_columns_changed(false),  m_num_windows(num_windows), m_num_bins(num_bins), m_r2max(r2max)
     {
     m_exec_conf->msg->notice(5) << "Constructing VanHoveAnalyzer: " << fname << " " << header_prefix << " " << overwrite << endl;
 
@@ -128,10 +129,14 @@ VanHoveAnalyzer::VanHoveAnalyzer(boost::shared_ptr<SystemDefinition> sysdef,
     // resize the histogram
     m_van_hove.resize(m_num_bins);
 
+    // zero counters/pointers
+    m_R0_offset = 0;
+    m_num_samples = 0;
+
     // record the initial particle positions by tag
-    m_initial_x.resize(m_pdata->getNGlobal());
-    m_initial_y.resize(m_pdata->getNGlobal());
-    m_initial_z.resize(m_pdata->getNGlobal());
+    m_initial_x.resize(m_pdata->getNGlobal() * m_num_windows);
+    m_initial_y.resize(m_pdata->getNGlobal() * m_num_windows);
+    m_initial_z.resize(m_pdata->getNGlobal() * m_num_windows);
     BoxDim box = m_pdata->getGlobalBox();
 
     // for each particle in the data
@@ -197,8 +202,14 @@ void VanHoveAnalyzer::analyze(unsigned int timestep)
         m_columns_changed = false;
         }
 
+    rollR0(snapshot);
+    m_num_samples += 1;
+
     // write out the row every time
-    writeRow(timestep, snapshot);
+    if (m_R0_offset >= m_num_windows)
+        {
+        writeRow(timestep, snapshot);
+        }
 
     if (m_prof)
         m_prof->pop();
@@ -223,14 +234,24 @@ void VanHoveAnalyzer::addColumn(boost::shared_ptr<ParticleGroup> group, const st
     {
     m_columns.push_back(column(group, name));
     m_columns_changed = true;
+    m_histograms.resize(m_columns.size());
+    for (unsigned int i=0; i<m_columns.size(); i++)
+        m_histograms[i].resize(m_num_bins);
     }
 
 /*! \param xml_fname Name of the XML file to read in to the r0 positions
 
     \post \a xml_fname is read and all initial r0 positions are assigned from that file.
+    \post \a window averaging window in which to set r0
 */
-void VanHoveAnalyzer::setR0(const std::string& xml_fname)
+void VanHoveAnalyzer::setR0(const std::string& xml_fname, const unsigned int window)
     {
+    if (window >= m_num_windows)
+        {
+        m_exec_conf->msg->error() << "analyze.van_hove: File " << xml_fname << " cannot be loaded at window " << window << "; only "<< m_num_windows << " exist in this VanHove analyzer" << endl;
+        throw runtime_error("Error setting R0 in analyze.van_hove");
+        }
+
     // read in the xml file
     HOOMDInitializer xml(m_exec_conf,xml_fname);
 
@@ -267,14 +288,15 @@ void VanHoveAnalyzer::setR0(const std::string& xml_fname)
     // reset the initial positions
     BoxDim box = m_pdata->getGlobalBox();
 
+    unsigned int offset = window * nparticles;
     // for each particle in the data
     for (unsigned int tag = 0; tag < nparticles; tag++)
         {
         // save its initial position
         HOOMDInitializer::vec pos = xml.getPos()[tag];
-        m_initial_x[tag] = pos.x;
-        m_initial_y[tag] = pos.y;
-        m_initial_z[tag] = pos.z;
+        m_initial_x[offset + tag] = pos.x;
+        m_initial_y[offset + tag] = pos.y;
+        m_initial_z[offset + tag] = pos.z;
 
         // adjust the positions by the image flags if we have them
         if (have_image)
@@ -283,13 +305,30 @@ void VanHoveAnalyzer::setR0(const std::string& xml_fname)
             Scalar3 pos = make_scalar3(m_initial_x[tag], m_initial_y[tag], m_initial_z[tag]);
             int3 image_i = make_int3(image.x, image.y, image.z);
             Scalar3 unwrapped = box.shift(pos, image_i);
-            m_initial_x[tag] = unwrapped.x;
-            m_initial_y[tag] = unwrapped.y;
-            m_initial_z[tag] = unwrapped.z;
+            m_initial_x[offset + tag] = unwrapped.x;
+            m_initial_y[offset + tag] = unwrapped.y;
+            m_initial_z[offset + tag] = unwrapped.z;
             }
         }
     }
 
+void VanHoveAnalyzer::rollR0(const SnapshotParticleData& snapshot)
+    {
+    // for each particle in the data
+    unsigned int N_particles = snapshot.size;
+    BoxDim box = m_pdata->getGlobalBox();
+    m_R0_offset += 1;
+    unsigned int offset = (m_R0_offset % m_num_windows) * N_particles;
+    for (unsigned int tag = 0; tag < N_particles; tag++)
+        {
+        // save its initial position
+        Scalar3 pos = snapshot.pos[tag];
+        Scalar3 unwrapped = box.shift(pos, snapshot.image[tag]);
+        m_initial_x[offset + tag] = unwrapped.x;
+        m_initial_y[offset + tag] = unwrapped.y;
+        m_initial_z[offset + tag] = unwrapped.z;
+        }
+    }
 /*! The entire header row is written to the file. First, timestep is written as every file includes it and then the
     columns are looped through and their names printed, separated by the delimiter.
 */
@@ -324,10 +363,17 @@ void VanHoveAnalyzer::writeHeader()
     Loop through all particles in the given group and calculate the VanHove over them.
     \returns The calculated VanHove
 */
-void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot)
+void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
+                                  const SnapshotParticleData& snapshot,
+                                  const unsigned int group_index)
     {
+
+    std::vector<Scalar> g_histogram = m_histograms[group_index];
     //clear the existing histogram
-    memset(&m_van_hove[0], 0, sizeof(Scalar)*m_num_bins);
+    if (m_num_samples == 0)
+        {
+        memset(&g_histogram[0], 0, sizeof(Scalar) * m_num_bins);
+        }
 
     BoxDim box = m_pdata->getGlobalBox();
 
@@ -338,7 +384,10 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, 
         return;
         }
 
+
     // for each particle in the group
+    // the oldest set of R0 coordinates is one passed the current position of the m_R0_offset pointer
+    unsigned int offset = (m_R0_offset + 1) % (m_num_windows) * snapshot.size;
     for (unsigned int group_idx = 0; group_idx < group->getNumMembersGlobal(); group_idx++)
         {
         // get the tag for the current group member from the group
@@ -346,22 +395,21 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, 
         Scalar3 pos = snapshot.pos[tag];
         int3 image = snapshot.image[tag];
         Scalar3 unwrapped = box.shift(pos, image);
-        Scalar dx = unwrapped.x - m_initial_x[tag];
-        Scalar dy = unwrapped.y - m_initial_y[tag];
-        Scalar dz = unwrapped.z - m_initial_z[tag];
+        Scalar dx = unwrapped.x - m_initial_x[offset + tag];
+        Scalar dy = unwrapped.y - m_initial_y[offset + tag];
+        Scalar dz = unwrapped.z - m_initial_z[offset + tag];
         Scalar dr2 = dx*dx + dy*dy + dz*dz;
         if (dr2 < m_r2max)
             {
-            m_van_hove[(int)(m_num_bins * sqrt(dr2/m_r2max))] += 1;
+            g_histogram[(int)(m_num_bins * sqrt(dr2/m_r2max))] += 1;
             }
         }
-    int N_particles = group->getNumMembersGlobal();
-    Scalar four_pi = M_PI * 4.0;
-    Scalar deltaR = sqrt(m_r2max) / m_num_bins;
+    // 4\pi dr^2 * N_particles (in group) * N_samples (in rolling average)
+    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * m_num_samples * m_r2max / (m_num_bins * m_num_bins);
     // divide to complete the average
     for (unsigned int i=0; i< m_num_bins; i++)
         {
-        m_van_hove[i] /= (four_pi * ((i + 0.5) * deltaR) * ((i + 0.5) * deltaR) * N_particles);
+        m_van_hove[i] = g_histogram[i]/(denom_precompute * ((i + 0.5) * (i + 0.5)) );
         }
     }
 
@@ -390,7 +438,7 @@ void VanHoveAnalyzer::writeRow(unsigned int timestep, const SnapshotParticleData
     // write all but the last of the columns separated by the delimiter
     for (unsigned int i = 0; i < m_columns.size(); i++)
         {
-        calcVanHove(m_columns[i].m_group, snapshot);
+        calcVanHove(m_columns[i].m_group, snapshot, i);
         m_file << setprecision(10);
         for (unsigned int j = 0; j < m_num_bins; j++)
             {
@@ -413,7 +461,8 @@ void export_VanHoveAnalyzer()
     {
     class_<VanHoveAnalyzer, boost::shared_ptr<VanHoveAnalyzer>, bases<Analyzer>, boost::noncopyable>
     ("VanHoveAnalyzer", init< boost::shared_ptr<SystemDefinition>, const std::string&,
-                              const unsigned int, const Scalar, const std::string&, bool >())
+                              const unsigned int, const unsigned int, const Scalar, 
+                              const std::string&, bool >())
     .def("setDelimiter", &VanHoveAnalyzer::setDelimiter)
     .def("addColumn", &VanHoveAnalyzer::addColumn)
     .def("setR0", &VanHoveAnalyzer::setR0)

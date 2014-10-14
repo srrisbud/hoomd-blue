@@ -350,18 +350,18 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group, 
         Scalar dy = unwrapped.y - m_initial_y[tag];
         Scalar dz = unwrapped.z - m_initial_z[tag];
         Scalar dr2 = dx*dx + dy*dy + dz*dz;
-        if (m_r2max >= dr2)
+        if (dr2 < m_r2max)
             {
-            m_van_hove[(int)(m_num_bins * dr2/m_r2max)] += 1;
+            m_van_hove[(int)(m_num_bins * sqrt(dr2/m_r2max))] += 1;
             }
         }
     int N_particles = group->getNumMembersGlobal();
     Scalar four_pi = M_PI * 4.0;
-    Scalar deltaR = m_r2max / m_num_bins;
+    Scalar deltaR = sqrt(m_r2max) / m_num_bins;
     // divide to complete the average
     for (unsigned int i=0; i< m_num_bins; i++)
         {
-        m_van_hove[i] /= four_pi * ((i + 0.5) * deltaR) * ((i + 0.5) * deltaR) * N_particles;
+        m_van_hove[i] /= (four_pi * ((i + 0.5) * deltaR) * ((i + 0.5) * deltaR) * N_particles);
         }
     }
 

@@ -331,12 +331,16 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
             g_histogram[(int)(m_num_bins * sqrt(dr2/m_r2max))] += 1;
             }
         }
-    // 4\pi dr^2 * N_particles (in group) * N_samples (in rolling average)
-    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * (m_num_samples + 1) * m_r2max / (m_num_bins * m_num_bins);
+    // 4\pi/3 dr^3 * N_particles (in group) * N_samples (in rolling average)
+    Scalar dr = sqrt(m_r2max)/m_num_bins;
+    Scalar dV = 0;
+    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * (m_num_samples + 1) * dr * dr * dr / 3.0;
+
     // divide to complete the average
     for (unsigned int i=0; i< m_num_bins; i++)
         {
-        m_van_hove[i] = g_histogram[i]/(denom_precompute * ((i + 0.5) * (i + 0.5)) );
+        dV =(3 * i * (i + 1) + 1);
+        m_van_hove[i] = g_histogram[i]/(denom_precompute * dV);
         }
     }
 

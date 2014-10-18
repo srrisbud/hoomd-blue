@@ -314,7 +314,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
 
     // for each particle in the group
     // the oldest set of R0 coordinates is one passed the current position of the m_R0_offset pointer
-    unsigned int offset = (m_R0_offset + 1) % (m_num_windows) * snapshot.size;
+    unsigned int offset = (m_R0_offset) % (m_num_windows) * snapshot.size;
     for (unsigned int group_idx = 0; group_idx < group->getNumMembersGlobal(); group_idx++)
         {
         // get the tag for the current group member from the group

@@ -131,7 +131,6 @@ VanHoveAnalyzer::VanHoveAnalyzer(boost::shared_ptr<SystemDefinition> sysdef,
 
     // zero counters/pointers
     m_R0_offset = 0;
-    m_num_samples = 0;
 
     // record the initial particle positions by tag
     m_initial_x.resize(m_pdata->getNGlobal() * m_num_windows);
@@ -206,7 +205,6 @@ void VanHoveAnalyzer::analyze(unsigned int timestep)
     if (m_R0_offset >= m_num_windows)
         {
         writeRow(timestep, snapshot);
-        m_num_samples += 1;
         }
 
     if (m_prof)
@@ -327,7 +325,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
     // 4\pi/3 dr^3 * N_particles (in group) * N_samples (in rolling average)
     Scalar dr = sqrt(m_r2max)/m_num_bins;
     Scalar dV = 0;
-    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * (m_num_samples + 1) * dr * dr * dr / 3.0;
+    Scalar denom_precompute  =  M_PI * 4.0 * group->getNumMembersGlobal() * dr * dr * dr / 3.0;
 
     // divide to complete the average
     for (unsigned int i=0; i< m_num_bins; i++)

@@ -130,7 +130,6 @@ class VanHoveAnalyzer : public Analyzer
         unsigned int m_num_bins; //!< num of bins for van hove histogram
         unsigned int m_num_windows;
         unsigned int m_R0_offset;
-        unsigned int m_num_samples;
         Scalar m_r2max; //!< max distance to compute histogram
         std::vector<Scalar> m_van_hove; //!< histogram of particle displacements
 

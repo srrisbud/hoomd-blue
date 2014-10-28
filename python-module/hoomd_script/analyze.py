@@ -641,34 +641,55 @@ class msd(_analyzer):
 
 class van_hove(_analyzer):
     ## Initialize the van_hove calculator. This analyzer compute the self
-    # part of the Van Hove correlation function
+    # part of the Van Hove correlation function.
+    #see: http://journals.aps.org/pr/abstract/10.1103/PhysRev.95.249
+    # The self part of the van Hove function is the probability density function
+    # that a particle has travelled a distance \f$r\f$ in a time \f$\tau\f$
+    #
+    # The users specifies \f$\tau\f$ and a `num_windows`, which is the number
+    # of simultaneous rolling averages to use. For example if \f$\tau=10^4\$
+    # and num_windows=10, the analyzer will be run every 1000 timesteps and
+    # will keep track of 10 sets of particle positions
+    # On the 10000th timestep, the particle positions are compared to the
+    # particle positions at the 0th timestep to compute the van Hove
+    # function and is logged.
+    # On the 11000th timestep, the particle positions are compared to the
+    # particle positions at the 1000th timestep to compute the van Hove
+    # function and is logged. Etc., etc.
     #
     # \param filename File to write the %data to
     # \param groups List of groups for which to calculate the Van Hove correlation
-    # \param num_bins Number of bins used to compute the Van Hove correlation function
-    # \param r_cut Radius as which to cut off Van Hove histogram
-    # \param period Quantities are logged every \a period time steps
+    # \param r_cut Radius as which to cut off van Hove function
+    # \param tau lag time at which to compute van Hove function
+    # \param num_bins Number of bins (in r) used to compute the Van Hove correlation function
+    # \param num_windows number of windows to use with the rolling average
     # \param header_prefix (optional) Specify a string to print before the header
-    # \param r0_file hoomd_xml file specifying the positions (and images) to use for \f$ \vec{r}_0 \f$
     # \param overwrite set to True to overwrite the file \a filename if it exists
+    #
+    # The period at which this analyzer with run is tau/num_windows.
+    # tau%num_windows must equal zero
     #
     # \b Examples:
     # \code
     # van_hove = analyze.van_hove(filename='van_hove.log', groups=[group1, group2],
-    #                   period=100)
+    #                   tau=100, num_windows=1)
     #
-    # analyze.van_hove(groups=[group1, group2, group3], period=1000,
+    # analyze.van_hove(groups=[group1, group2, group3], tau=1000, r_cut = 1.5,
     #             filename='van_hove.log', header_prefix='#')
     #
-    # analyze.van_hove(filename='van_hove.log', groups=[group1], period=10,
-    #             header_prefix='Log of group1 van_hove, run 5\n')
+    # analyze.van_hove(groups=[group1], tau=100000, num_windows=10,
+    #                  r_cut = 1.0, num_bins=50,
+    #                  header_prefix='Log of group1 van_hove, run 5\n')
+    # #After the simulation, the averaged \f$G(r,\tau)\f$ can be calculated
+    # import numpy as np
+    # gr_data = np.loadtxt('van_hove.log', skiprows=1)
+    # timesteps = gr_data[0, :]
+    # num_bins = gr_data[1, 0] #assumes these are static
+    # r_cuts = gr_data[2, 0]
+    # gr_tau = np.mean(gr_data[3 : 3 + num_bins, :], axis=1)
     # \endcode
     #
-    # If \a r0_file is left at the default of None, then the current state of the system at the execution of the
-    # analyze.van_hove command is used to initialize \f$ \vec{r}_0 \f$.
-    #
-    # \a period can be a function: see \ref variable_period_docs for details
-    def __init__(self, filename, groups, tau, num_windows, num_bins, r_cut,  header_prefix='', overwrite=False):
+    def __init__(self, filename, groups, r_cut, tau, num_bins=100, num_windows=1, header_prefix='', overwrite=False):
         util.print_status_line();
 
         # initialize base class
@@ -706,14 +727,14 @@ class van_hove(_analyzer):
     # Using set_params() requires that the specified van_hove was saved in a variable when created.
     # i.e.
     # \code
-    # van_hove = analyze.van_hove(filename='van_hove.log', groups=[group1, group2], period=100)
+    # van_hove = analyze.van_hove(filename='van_hove.log', groups=[group1, group2], tau=1000, r_cut=10.0)
     # \endcode
     #
     # \b Examples:
     # \code
     # van_hove.set_params(delimiter=',');
     # \endcode
-    def set_params(self, delimiter=None):
+    def set_params(self, delimiter=None, ):
         util.print_status_line();
 
         if delimiter:

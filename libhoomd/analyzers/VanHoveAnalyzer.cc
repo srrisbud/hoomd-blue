@@ -159,7 +159,8 @@ VanHoveAnalyzer::~VanHoveAnalyzer()
 
     analyze() will first write out the file header if the columns have changed.
 
-    On every call, analyze() will write calculate the VanHove for each group and write out a row in the file.
+    Every call, analyze() will save the current particle positions.
+    After num_windows calls, analyze() will write the VanHove for each group and write out a row in the file.
 */
 void VanHoveAnalyzer::analyze(unsigned int timestep)
     {

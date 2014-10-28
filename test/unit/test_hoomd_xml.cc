@@ -56,7 +56,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <math.h>
 #include "HOOMDDumpWriter.h"
 #include "HOOMDInitializer.h"
-#include "BondedGroupData.h"
+#include "ParticleGroup.h"
 
 #include <iostream>
 #include <sstream>

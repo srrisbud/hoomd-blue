@@ -234,9 +234,6 @@ void VanHoveAnalyzer::addColumn(boost::shared_ptr<ParticleGroup> group, const st
     {
     m_columns.push_back(column(group, name));
     m_columns_changed = true;
-    m_histograms.resize(m_columns.size());
-    for (unsigned int i=0; i<m_columns.size(); i++)
-        m_histograms[i].resize(m_num_bins);
     }
 
 void VanHoveAnalyzer::rollR0(const SnapshotParticleData& snapshot)
@@ -256,6 +253,7 @@ void VanHoveAnalyzer::rollR0(const SnapshotParticleData& snapshot)
         }
     m_R0_offset += 1;
     }
+
 /*! The entire header row is written to the file. First, timestep is written as every file includes it and then the
     columns are looped through and their names printed, separated by the delimiter.
 */
@@ -291,16 +289,11 @@ void VanHoveAnalyzer::writeHeader()
     \returns The calculated VanHove
 */
 void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
-                                  const SnapshotParticleData& snapshot,
-                                  const unsigned int group_index)
+                                  const SnapshotParticleData& snapshot)
     {
 
-    std::vector<Scalar>& g_histogram = m_histograms[group_index];
     //clear the existing histogram
-    if (m_num_samples == 0)
-        {
-        memset(&g_histogram[0], 0, sizeof(Scalar) * m_num_bins);
-        }
+    memset(&m_van_hove[0], 0, sizeof(Scalar) * m_num_bins);
 
     BoxDim box = m_pdata->getGlobalBox();
 
@@ -328,7 +321,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
         Scalar dr2 = dx*dx + dy*dy + dz*dz;
         if (dr2 < m_r2max)
             {
-            g_histogram[(int)(m_num_bins * sqrt(dr2/m_r2max))] += 1;
+            m_van_hove[(int)(m_num_bins * sqrt(dr2/m_r2max))] += 1;
             }
         }
     // 4\pi/3 dr^3 * N_particles (in group) * N_samples (in rolling average)
@@ -340,7 +333,7 @@ void VanHoveAnalyzer::calcVanHove(boost::shared_ptr<ParticleGroup const> group,
     for (unsigned int i=0; i< m_num_bins; i++)
         {
         dV =(3 * i * (i + 1) + 1);
-        m_van_hove[i] = g_histogram[i]/(denom_precompute * dV);
+        m_van_hove[i] /= (denom_precompute * dV);
         }
     }
 
@@ -369,7 +362,7 @@ void VanHoveAnalyzer::writeRow(unsigned int timestep, const SnapshotParticleData
     // write all but the last of the columns separated by the delimiter
     for (unsigned int i = 0; i < m_columns.size(); i++)
         {
-        calcVanHove(m_columns[i].m_group, snapshot, i);
+        calcVanHove(m_columns[i].m_group, snapshot);
         m_file << setprecision(10);
         for (unsigned int j = 0; j < m_num_bins; j++)
             {

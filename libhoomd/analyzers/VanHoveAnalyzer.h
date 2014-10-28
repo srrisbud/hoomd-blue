@@ -133,7 +133,6 @@ class VanHoveAnalyzer : public Analyzer
         unsigned int m_num_samples;
         Scalar m_r2max; //!< max distance to compute histogram
         std::vector<Scalar> m_van_hove; //!< histogram of particle displacements
-        std::vector< std::vector<Scalar> > m_histograms; //!< histogram of particle displacements
 
         //! struct for storing the particle group and name assocated with a column in the output
         struct column
@@ -153,7 +152,7 @@ class VanHoveAnalyzer : public Analyzer
         //! Helper function to write out the header
         void writeHeader();
         //! Helper function to calculate the VanHove of a single group
-        void calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot, unsigned int group_index);
+        void calcVanHove(boost::shared_ptr<ParticleGroup const> group, const SnapshotParticleData& snapshot);
         //! Helper function to write one row of output
         void writeRow(unsigned int timestep, const SnapshotParticleData& snapshot);
         //! Helper function to compute rolling averages of G(r,tau)

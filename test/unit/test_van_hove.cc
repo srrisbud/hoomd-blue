@@ -61,9 +61,13 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <iostream>
 #include <sstream>
+#include <string>
+
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>
+#include <boost/lexical_cast.hpp>
 using namespace boost::filesystem;
+
 #include <boost/shared_ptr.hpp>
 using namespace boost;
 
@@ -78,6 +82,30 @@ using namespace std;
     \brief Unit tests for VanHoveAnaylzer
     \ingroup unit_tests
 */
+
+
+std::string next_token(std::string& s, std::string delimiter="\t")
+    {
+    unsigned int pos = s.find(delimiter);
+    if(pos == std::string::npos)
+        {
+        s = "";
+        return "";
+        }
+    std::string token = s.substr(0, pos);
+    s.erase(0, pos + delimiter.length());
+    return token;
+    }
+
+int parse_int(std::string& s, std::string delimiter="\t")
+    {
+    return boost::lexical_cast<int>(next_token(s, delimiter));
+    }
+
+float parse_float(std::string& s, std::string delimiter="\t")
+    {
+    return boost::lexical_cast<float>(next_token(s, delimiter));
+    }
 
 //! Test basic functionality of HOOMDInitializer
 BOOST_AUTO_TEST_CASE( HOOMD_van_hove )
@@ -175,29 +203,41 @@ BOOST_AUTO_TEST_CASE( HOOMD_van_hove )
     string line;
     getline(f_in, line);
     BOOST_CHECK_EQUAL(line, "timestep\tnum_bins\tr_cut\tall");
+    for (unsigned int i=0; i<10; i++)
+        {
+        getline(f_in, line);
+        BOOST_CHECK_EQUAL(parse_int(line), 11 + i);
+        BOOST_CHECK_EQUAL(parse_int(line), 10);
+        BOOST_CHECK_EQUAL(parse_int(line), 10);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0.03410463066, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+        BOOST_REQUIRE(!f_in.bad());
+        }
+
     getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "11\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "12\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "13\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "14\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "15\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "16\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "17\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "18\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "19\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "20\t10\t10\t0\t0.03410463066\t0\t0\t0\t0\t0\t0\t0\t0");
-    getline(f_in, line);
-    BOOST_CHECK_EQUAL(line, "21\t10\t10\t0.2387324146\t0\t0\t0\t0\t0\t0\t0\t0\t0");
+    BOOST_CHECK_EQUAL(parse_int(line), 21);
+    BOOST_CHECK_EQUAL(parse_int(line), 10);
+    BOOST_CHECK_EQUAL(parse_int(line), 10);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0.2387324146, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
+    MY_BOOST_CHECK_CLOSE(parse_float(line), 0, 1e-6);
     BOOST_REQUIRE(!f_in.bad());
+
     f_in.close();
     // clean up after ourselves
     remove_all("test_input.xml");
